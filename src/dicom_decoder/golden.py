@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .fixtures import VendorFixtureCase, load_vendor_fixture_cases
+from .fixtures import FixturePluginConfig, VendorFixtureCase, load_vendor_fixture_cases
 from .parser import parse_dicom
-from .plugins import VendorDcXHeaderPlugin, WrapperDecoder
+from .plugins import VendorDcXHeaderPlugin, VendorFixtureWrapperPlugin, WrapperDecoder
 from .models import ParseResult
 
 
@@ -34,7 +34,52 @@ class GoldenRunSummary:
 
 
 def _build_decoder_for_case(case: VendorFixtureCase) -> WrapperDecoder:
-    return VendorDcXHeaderPlugin(name=case.plugin_name, header=case.header_bytes)
+    cfg = case.plugin
+    if cfg.plugin_type == "header":
+        return VendorDcXHeaderPlugin(name=cfg.name, header=cfg.header_bytes)
+    if cfg.plugin_type == "prefix-strip":
+        return VendorFixtureWrapperPlugin(
+            name=cfg.name,
+            fixture_prefix=cfg.prefix_bytes,
+            strip_prefix_bytes=cfg.strip_prefix_bytes,
+        )
+    raise ValueError(f"Unsupported plugin type in fixture case {case.case_name}: {cfg.plugin_type}")
+
+
+def _validate_expected(case: VendorFixtureCase, parsed: ParseResult) -> list[str]:
+    errors = list(parsed.errors)
+
+    for tag_key, expected_value in case.expected_tags.items():
+        actual = parsed.tags.get(tag_key)
+        if actual != expected_value:
+            errors.append(
+                f"Expected tag {tag_key}={expected_value!r}, got {actual!r}."
+            )
+
+    if case.expect_unwrap_plugin is not None and parsed.unwrap_plugin != case.expect_unwrap_plugin:
+        errors.append(
+            f"Expected unwrap_plugin={case.expect_unwrap_plugin!r}, got {parsed.unwrap_plugin!r}."
+        )
+
+    if case.expect_source_format is not None and parsed.source_format != case.expect_source_format:
+        errors.append(
+            f"Expected source_format={case.expect_source_format!r}, got {parsed.source_format!r}."
+        )
+
+    if case.expect_has_pixel_data is not None and parsed.has_pixel_data != case.expect_has_pixel_data:
+        errors.append(
+            f"Expected has_pixel_data={case.expect_has_pixel_data!r}, got {parsed.has_pixel_data!r}."
+        )
+
+    for fragment in case.expect_error_contains:
+        if not any(fragment in msg for msg in parsed.errors):
+            errors.append(f"Expected error containing {fragment!r} not found.")
+
+    for fragment in case.expect_warning_contains:
+        if not any(fragment in msg for msg in parsed.warnings):
+            errors.append(f"Expected warning containing {fragment!r} not found.")
+
+    return errors
 
 
 @dataclass
@@ -64,15 +109,14 @@ def run_vendor_fixture_suite(
     passed = 0
 
     for case in cases:
-        decoder = plugin_map[case.plugin_name] if plugin_map and case.plugin_name in plugin_map else _build_decoder_for_case(case)
+        cfg: FixturePluginConfig = case.plugin
+        decoder = (
+            plugin_map[cfg.name]
+            if plugin_map and cfg.name in plugin_map
+            else _build_decoder_for_case(case)
+        )
         parsed = parse_dicom(str(case.wrapped_path), decoders=[decoder])
-        case_errors = list(parsed.errors)
-        if case.expected_patient_id is not None:
-            patient_id = parsed.tags.get("PatientID")
-            if patient_id != case.expected_patient_id:
-                case_errors.append(
-                    f"Expected PatientID={case.expected_patient_id!r}, got {patient_id!r}."
-                )
+        case_errors = _validate_expected(case, parsed)
         ok = not case_errors
         if ok:
             passed += 1

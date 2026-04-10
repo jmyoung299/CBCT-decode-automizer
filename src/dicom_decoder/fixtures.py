@@ -40,7 +40,11 @@ class VendorFixtureCase:
     wrapped_path: Path
     plugin_name: str
     header_bytes: bytes
+    strip_bytes: int
     expected_patient_id: str | None
+    expected_tags: dict[str, str]
+    expected_warnings_contains: list[str]
+    expected_errors_contains: list[str]
     enabled: bool = True
 
 
@@ -131,6 +135,30 @@ def _get_expected_patient_id(config: dict[str, str], expected_json: dict[str, ob
     return None
 
 
+def _get_expected_tags(expected_json: dict[str, object]) -> dict[str, str]:
+    tags: dict[str, str] = {}
+    if not isinstance(expected_json, dict):
+        return tags
+
+    expected_obj = expected_json.get("expected", {})
+    if not isinstance(expected_obj, dict):
+        return tags
+
+    for key, value in expected_obj.items():
+        if isinstance(value, str):
+            tags[key] = value
+    return tags
+
+
+def _get_expected_contains(expected_json: dict[str, object], key: str) -> list[str]:
+    if not isinstance(expected_json, dict):
+        return []
+    values = expected_json.get(key, [])
+    if not isinstance(values, list):
+        return []
+    return [v for v in values if isinstance(v, str) and v]
+
+
 def load_vendor_fixture_case(case_dir: str | Path) -> VendorFixtureCase | None:
     case_path = Path(case_dir)
     wrapped_path = case_path / "wrapped.dcx"
@@ -159,7 +187,11 @@ def load_vendor_fixture_case(case_dir: str | Path) -> VendorFixtureCase | None:
         wrapped_path=wrapped_path,
         plugin_name=_get_plugin_name(config, expected_json),
         header_bytes=_get_header_bytes(config, expected_json),
+        strip_bytes=_int_from_string(config.get("strip_prefix_bytes", ""), len(_get_header_bytes(config, expected_json))),
         expected_patient_id=_get_expected_patient_id(config, expected_json),
+        expected_tags=_get_expected_tags(expected_json),
+        expected_warnings_contains=_get_expected_contains(expected_json, "warnings_contains"),
+        expected_errors_contains=_get_expected_contains(expected_json, "errors_contains"),
         enabled=True,
     )
 

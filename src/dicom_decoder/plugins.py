@@ -53,6 +53,7 @@ class VendorDcXHeaderPlugin:
 
     name: str
     header: bytes
+    strip_bytes: int = 0
     version: str = "0.1.0"
 
     def match(self, blob: bytes) -> float:
@@ -61,9 +62,10 @@ class VendorDcXHeaderPlugin:
     def unwrap(self, blob: bytes) -> bytes:
         if not blob.startswith(self.header):
             raise UnwrapError("Header mismatch.")
-        if len(blob) <= len(self.header):
+        cut = len(self.header) + self.strip_bytes
+        if len(blob) <= cut:
             raise UnwrapError("Payload too short after stripping header.")
-        return blob[len(self.header) :]
+        return blob[cut:]
 
     @classmethod
     def from_fixture_file(cls, fixture_path: str | Path) -> "VendorDcXHeaderPlugin":
@@ -96,6 +98,7 @@ class VendorDcXHeaderPlugin:
         return cls(
             name=values.get("name", "vendor-dcx-skeleton"),
             header=header,
+            strip_bytes=int(values.get("strip_bytes", "0")),
         )
 
 

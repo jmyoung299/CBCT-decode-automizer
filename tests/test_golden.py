@@ -55,6 +55,7 @@ def test_run_vendor_fixture_suite_success() -> None:
         assert summary.total_cases == 1
         assert summary.passed_cases == 1
         assert summary.failed_cases == 0
+        assert summary.cases[0]["ok"] is True
 
 
 def test_run_vendor_fixture_suite_with_custom_plugin_map() -> None:
@@ -77,6 +78,87 @@ def test_run_vendor_fixture_suite_with_custom_plugin_map() -> None:
             "custom-plugin": VendorDcXHeaderPlugin(name="custom-plugin", header=b"CUSTOM1")
         }
         summary = run_vendor_fixture_suite(root, plugin_map=plugin_map)
+        assert summary.total_cases == 1
+        assert summary.passed_cases == 1
+        assert summary.failed_cases == 0
+
+
+def test_run_vendor_fixture_suite_validates_extra_expected_tags() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        case = root / "case-003"
+        case.mkdir(parents=True)
+
+        raw = _create_minimal_dicom(case / "source.dcm", patient_id="GOLDEN-3")
+        (case / "wrapped.dcx").write_bytes(b"VENDHDR" + raw)
+        (case / "expected.json").write_text(
+            '{\n'
+            '  "plugin": {"name": "vendor-case", "header_ascii": "VENDHDR"},\n'
+            '  "expected": {"PatientID": "GOLDEN-3", "Modality": "CT"}\n'
+            '}\n',
+            encoding="utf-8",
+        )
+
+        summary = run_vendor_fixture_suite(root)
+        assert summary.total_cases == 1
+        assert summary.passed_cases == 1
+        assert summary.failed_cases == 0
+
+
+def test_run_vendor_fixture_suite_honors_required_warning_substring() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        case = root / "case-004"
+        case.mkdir(parents=True)
+
+        # metadata-only object: no PixelData warning expected
+        meta = FileMetaDataset()
+        meta.MediaStorageSOPClassUID = CTImageStorage
+        sop_instance_uid = generate_uid()
+        meta.MediaStorageSOPInstanceUID = sop_instance_uid
+        meta.TransferSyntaxUID = ExplicitVRLittleEndian
+        ds = FileDataset(str(case / "source.dcm"), {}, file_meta=meta, preamble=b"\0" * 128)
+        ds.PatientID = "WARN-CASE"
+        ds.StudyInstanceUID = generate_uid()
+        ds.SeriesInstanceUID = generate_uid()
+        ds.SOPClassUID = CTImageStorage
+        ds.SOPInstanceUID = sop_instance_uid
+        ds.Modality = "CT"
+        ds.save_as(str(case / "source.dcm"), enforce_file_format=True)
+        (case / "wrapped.dcx").write_bytes(b"VENDHDR" + (case / "source.dcm").read_bytes())
+        (case / "expected.json").write_text(
+            '{\n'
+            '  "plugin": {"name": "vendor-case", "header_ascii": "VENDHDR"},\n'
+            '  "expected": {"PatientID": "WARN-CASE"},\n'
+            '  "required_warning_substring": "No PixelData present"\n'
+            '}\n',
+            encoding="utf-8",
+        )
+
+        summary = run_vendor_fixture_suite(root)
+        assert summary.total_cases == 1
+        assert summary.passed_cases == 1
+        assert summary.failed_cases == 0
+
+
+def test_run_vendor_fixture_suite_honors_forbidden_error_substring() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        case = root / "case-005"
+        case.mkdir(parents=True)
+
+        raw = _create_minimal_dicom(case / "source.dcm", patient_id="NO-ERROR-CASE")
+        (case / "wrapped.dcx").write_bytes(b"VENDHDR" + raw)
+        (case / "expected.json").write_text(
+            '{\n'
+            '  "plugin": {"name": "vendor-case", "header_ascii": "VENDHDR"},\n'
+            '  "expected": {"PatientID": "NO-ERROR-CASE"},\n'
+            '  "forbidden_error_substring": "Invalid DICOM"\n'
+            '}\n',
+            encoding="utf-8",
+        )
+
+        summary = run_vendor_fixture_suite(root)
         assert summary.total_cases == 1
         assert summary.passed_cases == 1
         assert summary.failed_cases == 0
