@@ -12,59 +12,77 @@ def _safe_int(value: object | None) -> int | None:
         return None
 
 
-def validate_pixel_data(ds: FileDataset) -> tuple[list[str], list[str], int | None]:
+def expected_pixel_data_length_bytes(
+    *,
+    rows: int | None,
+    cols: int | None,
+    bits_allocated: int | None,
+    samples_per_pixel: int | None,
+    number_of_frames: int | None,
+) -> int | None:
+    if rows is None or cols is None or bits_allocated is None:
+        return None
+
+    if bits_allocated <= 0:
+        return None
+
+    samples = samples_per_pixel if samples_per_pixel is not None else 1
+    frames = number_of_frames if number_of_frames is not None else 1
+    if samples <= 0 or frames <= 0:
+        return None
+
+    total_samples = rows * cols * samples * frames
+    if bits_allocated == 1:
+        return (total_samples + 7) // 8
+
+    if bits_allocated % 8 != 0:
+        return None
+
+    return total_samples * (bits_allocated // 8)
+
+
+def validate_pixel_data(
+    ds: FileDataset,
+    *,
+    strict_length_check: bool,
+) -> tuple[list[str], list[str], int | None, int | None]:
     """
-    Validate core pixel-data consistency and return (warnings, errors, expected_bytes).
+    Validate pixel-data consistency and return:
+    (warnings, errors, raw_length_bytes, expected_length_bytes).
     """
     warnings: list[str] = []
     errors: list[str] = []
 
     if "PixelData" not in ds:
         warnings.append("No PixelData present (metadata-only object or incomplete file).")
-        return warnings, errors, None
+        return warnings, errors, None, None
 
     rows = _safe_int(getattr(ds, "Rows", None))
     cols = _safe_int(getattr(ds, "Columns", None))
     bits_allocated = _safe_int(getattr(ds, "BitsAllocated", None))
     samples_per_pixel = _safe_int(getattr(ds, "SamplesPerPixel", None))
-    number_of_frames = _safe_int(getattr(ds, "NumberOfFrames", None)) or 1
+    number_of_frames = _safe_int(getattr(ds, "NumberOfFrames", None))
 
     if rows is None or cols is None:
         errors.append("PixelData exists but Rows/Columns missing.")
-        return warnings, errors, None
     if bits_allocated is None:
         warnings.append("PixelData exists but BitsAllocated missing.")
-        return warnings, errors, None
-    if samples_per_pixel is None:
-        samples_per_pixel = 1
-        warnings.append("SamplesPerPixel missing; assuming 1.")
-    if number_of_frames <= 0:
+    if number_of_frames is not None and number_of_frames <= 0:
         errors.append("NumberOfFrames must be >= 1 when present.")
-        return warnings, errors, None
+    if samples_per_pixel is None:
+        warnings.append("SamplesPerPixel missing; assuming 1.")
 
-    # DICOM packs 1-bit pixels; otherwise bytes per sample is bits/8.
-    total_samples = rows * cols * samples_per_pixel * number_of_frames
-    if bits_allocated == 1:
-        expected_len = (total_samples + 7) // 8
-    else:
-        if bits_allocated % 8 != 0:
-            warnings.append(
-                f"BitsAllocated={bits_allocated} is not byte-aligned; exact byte length check skipped."
-            )
-            return warnings, errors, None
-        expected_len = total_samples * (bits_allocated // 8)
-
-    actual_len = len(ds.PixelData)
-    if actual_len < expected_len:
+    raw_length = len(ds.PixelData)
+    expected_length = expected_pixel_data_length_bytes(
+        rows=rows,
+        cols=cols,
+        bits_allocated=bits_allocated,
+        samples_per_pixel=samples_per_pixel,
+        number_of_frames=number_of_frames,
+    )
+    if strict_length_check and expected_length is not None and raw_length != expected_length:
         errors.append(
-            "PixelData shorter than expected: "
-            f"expected>={expected_len} bytes, got {actual_len}."
-        )
-    elif actual_len > expected_len:
-        warnings.append(
-            "PixelData larger than expected by simple geometry check: "
-            f"expected {expected_len}, got {actual_len}. "
-            "This can be valid for encapsulated/compressed transfer syntaxes."
+            f"PixelData length mismatch: expected {expected_length} bytes, got {raw_length}."
         )
 
-    return warnings, errors, expected_len
+    return warnings, errors, raw_length, expected_length

@@ -4,7 +4,7 @@ from pathlib import Path
 from pydicom import FileDataset, FileMetaDataset
 from pydicom.uid import CTImageStorage, ExplicitVRLittleEndian, generate_uid
 
-from dicom_decoder.batch import parse_directory
+from dicom_decoder.batch import parse_batch
 
 
 def _create_minimal_dicom(path: Path, patient_id: str) -> None:
@@ -33,14 +33,14 @@ def _create_minimal_dicom(path: Path, patient_id: str) -> None:
     ds.save_as(str(path), enforce_file_format=True)
 
 
-def test_parse_directory_collects_mixed_inputs() -> None:
+def test_parse_batch_collects_mixed_inputs() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         root = Path(tmp_dir)
         _create_minimal_dicom(root / "a.dcm", patient_id="A")
         _create_minimal_dicom(root / "b.dicom", patient_id="B")
         (root / "bad.dcx").write_bytes(b"NOT_A_DICOM")
 
-        summary = parse_directory(str(root))
-        assert summary.total_files == 3
-        assert summary.parsed_ok == 2
-        assert summary.parsed_with_errors == 1
+        summary = parse_batch(str(root))
+        assert summary.scanned_files == 3
+        assert summary.parsed_files == 2
+        assert summary.failed_files == 1

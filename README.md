@@ -27,14 +27,13 @@ The parser first runs a byte-level sniffer, then:
 ## Parse a folder (batch mode)
 
 ```bash
-dicom-parse-batch /path/to/folder --glob "*.dcm" --output report.json
+dicom-parse-batch /path/to/folder
 ```
 
-This writes a JSON report containing:
+This prints a JSON report containing:
 
 - per-file parse results
-- summary counters (total, success, failed)
-- list of files with validation errors
+- summary counters (`scanned_files`, `parsed_files`, `failed_files`)
 
 ## Phase 2 extension points
 

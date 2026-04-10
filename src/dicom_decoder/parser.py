@@ -10,7 +10,7 @@ from pydicom.uid import UID
 from .models import ParseResult
 from .plugins import WrapperDecoder, default_decoders
 from .sniffer import sniff_and_unwrap
-from .validators import expected_pixel_data_length_bytes
+from .validators import validate_pixel_data
 
 KEY_TAGS = {
     "PatientID": "PatientID",
@@ -57,6 +57,8 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
             columns=None,
             bits_allocated=None,
             number_of_frames=None,
+            pixel_data_length=None,
+            expected_pixel_data_length=None,
             tags={},
             warnings=warnings,
             errors=[f"Unable to decode DICOM payload (classification: {sniff.classification})."],
@@ -77,6 +79,8 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
             columns=None,
             bits_allocated=None,
             number_of_frames=None,
+            pixel_data_length=None,
+            expected_pixel_data_length=None,
             tags={},
             warnings=warnings,
             errors=[f"Invalid DICOM after unwrap: {exc}"],
@@ -102,35 +106,27 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
     n_frames_raw = getattr(ds, "NumberOfFrames", None)
     number_of_frames = int(n_frames_raw) if n_frames_raw is not None else (1 if has_pixel_data else None)
 
-    if has_pixel_data and (rows is None or cols is None):
-        errors.append("PixelData exists but Rows/Columns missing.")
-    if has_pixel_data and bits_allocated is None:
-        warnings.append("PixelData exists but BitsAllocated missing.")
-    if not has_pixel_data:
-        warnings.append("No PixelData present (metadata-only object or incomplete file).")
-    else:
-        raw_pixel_bytes = len(ds.PixelData)
-        if raw_pixel_bytes <= 0:
+    pixel_data_length = len(ds.PixelData) if has_pixel_data else None
+    expected_pixel_data_length = None
+
+    if has_pixel_data:
+        if pixel_data_length is not None and pixel_data_length <= 0:
             errors.append("PixelData exists but byte payload is empty.")
         ts_encapsulated = _is_encapsulated_transfer_syntax(ts_uid)
-        if not ts_encapsulated:
-            expected_len = expected_pixel_data_length_bytes(
-                rows=rows,
-                cols=cols,
-                bits_allocated=bits_allocated,
-                samples_per_pixel=getattr(ds, "SamplesPerPixel", None),
-                number_of_frames=number_of_frames,
-            )
-            if expected_len is not None and raw_pixel_bytes != expected_len:
-                errors.append(
-                    "PixelData length mismatch: "
-                    f"expected {expected_len} bytes, got {raw_pixel_bytes}."
-                )
-        else:
+        validation_warnings, validation_errors, raw_length, expected_len = validate_pixel_data(
+            ds,
+            strict_length_check=not ts_encapsulated,
+        )
+        warnings.extend(validation_warnings)
+        pixel_data_length = raw_length
+        expected_pixel_data_length = expected_len
+        if ts_encapsulated:
             warnings.append(
                 "Encapsulated transfer syntax detected; strict raw PixelData byte-length "
                 "validation skipped."
             )
+        else:
+            errors.extend(validation_errors)
 
     return ParseResult(
         path=str(p),
@@ -142,7 +138,8 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
         columns=cols,
         bits_allocated=bits_allocated,
         number_of_frames=number_of_frames,
-        pixel_data_length_bytes=len(ds.PixelData) if has_pixel_data else None,
+        pixel_data_length=pixel_data_length,
+        expected_pixel_data_length=expected_pixel_data_length,
         tags=tags,
         warnings=warnings,
         errors=errors,
