@@ -23,6 +23,8 @@ class ParseResult:
     columns: int | None
     bits_allocated: int | None
     number_of_frames: int | None
+    pixel_data_length: int | None
+    expected_pixel_data_length: int | None
     tags: dict[str, Any]
     warnings: list[str]
     errors: list[str]

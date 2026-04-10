@@ -9,6 +9,7 @@ dependencies = [
 
 [project.scripts]
 dicom-parse = "dicom_decoder.cli:main"
+dicom-parse-batch = "dicom_decoder.cli_batch:main"
 
 [project.optional-dependencies]
 dev = [

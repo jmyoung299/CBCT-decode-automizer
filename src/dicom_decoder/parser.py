@@ -5,10 +5,12 @@ from pathlib import Path
 
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
+from pydicom.uid import UID
 
 from .models import ParseResult
 from .plugins import WrapperDecoder, default_decoders
 from .sniffer import sniff_and_unwrap
+from .validators import expected_pixel_data_length_bytes
 
 KEY_TAGS = {
     "PatientID": "PatientID",
@@ -24,6 +26,15 @@ KEY_TAGS = {
     "PixelSpacing": "PixelSpacing",
     "SliceThickness": "SliceThickness",
 }
+
+
+def _is_encapsulated_transfer_syntax(ts_uid: str | None) -> bool:
+    if ts_uid is None:
+        return False
+    try:
+        return UID(ts_uid).is_encapsulated
+    except Exception:
+        return False
 
 
 def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> ParseResult:
@@ -97,6 +108,29 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
         warnings.append("PixelData exists but BitsAllocated missing.")
     if not has_pixel_data:
         warnings.append("No PixelData present (metadata-only object or incomplete file).")
+    else:
+        raw_pixel_bytes = len(ds.PixelData)
+        if raw_pixel_bytes <= 0:
+            errors.append("PixelData exists but byte payload is empty.")
+        ts_encapsulated = _is_encapsulated_transfer_syntax(ts_uid)
+        if not ts_encapsulated:
+            expected_len = expected_pixel_data_length_bytes(
+                rows=rows,
+                cols=cols,
+                bits_allocated=bits_allocated,
+                samples_per_pixel=getattr(ds, "SamplesPerPixel", None),
+                number_of_frames=number_of_frames,
+            )
+            if expected_len is not None and raw_pixel_bytes != expected_len:
+                errors.append(
+                    "PixelData length mismatch: "
+                    f"expected {expected_len} bytes, got {raw_pixel_bytes}."
+                )
+        else:
+            warnings.append(
+                "Encapsulated transfer syntax detected; strict raw PixelData byte-length "
+                "validation skipped."
+            )
 
     return ParseResult(
         path=str(p),
@@ -108,6 +142,7 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
         columns=cols,
         bits_allocated=bits_allocated,
         number_of_frames=number_of_frames,
+        pixel_data_length_bytes=len(ds.PixelData) if has_pixel_data else None,
         tags=tags,
         warnings=warnings,
         errors=errors,

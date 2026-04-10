@@ -5,6 +5,7 @@ from pydicom import FileDataset, FileMetaDataset
 from pydicom.uid import CTImageStorage, ExplicitVRLittleEndian, generate_uid
 
 from dicom_decoder.parser import parse_dicom
+from dicom_decoder.plugins import PrefixBytesWrapperPlugin
 
 
 def _create_minimal_dicom(path: Path) -> None:
@@ -60,3 +61,39 @@ def test_parse_dicom_rejects_unknown_payload() -> None:
         result = parse_dicom(str(payload_path), decoders=[])
         assert result.errors
     assert result.source_format == "encrypted_or_unknown"
+
+
+def test_parse_dicom_reports_pixel_length_mismatch() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        dicom_path = Path(tmp_dir) / "bad_pixel_length.dcm"
+        _create_minimal_dicom(dicom_path)
+        # Corrupt the pixel payload length from 4 to 3 bytes.
+        ds_bytes = dicom_path.read_bytes()
+        dicom_path.write_bytes(ds_bytes[:-1])
+
+        result = parse_dicom(str(dicom_path), decoders=[])
+
+        assert result.has_pixel_data
+        assert result.pixel_data_length == 3
+        assert any("PixelData length mismatch" in err for err in result.errors)
+
+
+def test_parse_dicom_with_prefix_plugin() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        dicom_path = Path(tmp_dir) / "source.dcm"
+        _create_minimal_dicom(dicom_path)
+
+        raw = dicom_path.read_bytes()
+        wrapped = b"DCX1" + raw
+        wrapped_path = Path(tmp_dir) / "wrapped.dcx"
+        wrapped_path.write_bytes(wrapped)
+
+        result = parse_dicom(
+            str(wrapped_path),
+            decoders=[PrefixBytesWrapperPlugin(name="dcx-v1", magic_prefix=b"DCX1", strip_bytes=4)],
+        )
+
+        assert not result.errors
+        assert result.unwrap_plugin == "dcx-v1"
+        assert result.source_format == "wrapped_by_plugin"
+        assert result.has_pixel_data is True

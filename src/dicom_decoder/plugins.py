@@ -48,4 +48,7 @@ def default_decoders() -> list[WrapperDecoder]:
     """
     Register default decoders here.
     """
+    # Add real proprietary handlers here as they are implemented.
+    # Example:
+    # return [PrefixBytesWrapperPlugin(name="vendor-dcx", magic_prefix=b"DCX1", strip_bytes=4)]
     return []
