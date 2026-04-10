@@ -23,6 +23,10 @@ def main() -> None:
         action="store_true",
         help="Pretty print JSON output.",
     )
+    parser.add_argument(
+        "--dump-unwrapped",
+        help="Optional output path for unwrapped P10 bytes (single-file mode).",
+    )
     args = parser.parse_args()
 
     if args.batch:
@@ -34,7 +38,10 @@ def main() -> None:
     if not args.path:
         parser.error("Provide either a file path or --batch directory.")
 
-    result = parse_dicom(args.path)
+    result = parse_dicom(
+        args.path,
+        dump_unwrapped_path=args.dump_unwrapped,
+    )
     indent = 2 if args.pretty else None
     print(json.dumps(result.to_dict(), indent=indent))
 

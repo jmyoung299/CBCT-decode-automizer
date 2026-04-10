@@ -152,10 +152,25 @@ def parse_dicom_bytes(
     )
 
 
-def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> ParseResult:
+def parse_dicom(
+    path: str,
+    decoders: list[WrapperDecoder] | None = None,
+    *,
+    dump_unwrapped_path: str | None = None,
+) -> ParseResult:
     p = Path(path)
+    payload = p.read_bytes()
+    if dump_unwrapped_path is not None:
+        sniff = sniff_and_unwrap(
+            payload,
+            plugins=default_decoders() if decoders is None else decoders,
+        )
+        if sniff.is_dicom:
+            dump_path = Path(dump_unwrapped_path)
+            dump_path.parent.mkdir(parents=True, exist_ok=True)
+            dump_path.write_bytes(sniff.payload)
     return parse_dicom_bytes(
-        p.read_bytes(),
+        payload,
         source_name=str(p),
         decoders=decoders,
     )

@@ -83,3 +83,12 @@ def parse_directory(
 ) -> BatchResult:
     """Backwards-compatible alias for older callers."""
     return parse_batch(path=path, decoders=decoders, recursive=recursive)
+
+
+def parse_many(
+    path: str,
+    decoders: list[WrapperDecoder] | None = None,
+    recursive: bool = True,
+) -> BatchResult:
+    """Backward-compatible alias used by earlier CLI wiring."""
+    return parse_batch(path=path, decoders=decoders, recursive=recursive)

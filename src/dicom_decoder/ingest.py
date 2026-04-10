@@ -39,6 +39,9 @@ class S3ParseSummary:
         }
 
 
+S3IngestResult = S3ParseSummary
+
+
 def parse_uris(
     uris: list[str],
     reader: BlobReader,

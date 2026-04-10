@@ -47,6 +47,18 @@ def test_parse_batch_collects_mixed_inputs() -> None:
         assert summary.failed_files == 1
 
 
+def test_parse_many_alias_matches_parse_batch() -> None:
+    from dicom_decoder.batch import parse_many
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        _create_minimal_dicom(root / "a.dcm", patient_id="A")
+        batch_summary = parse_batch(str(root))
+        many_summary = parse_many(str(root))
+        assert batch_summary.total_files == many_summary.total_files
+        assert batch_summary.parsed_ok == many_summary.parsed_ok
+
+
 def test_parse_s3_objects_reports_results() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         root = Path(tmp_dir)

@@ -1,7 +1,7 @@
 from dicom_decoder.plugins import (
     PrefixBytesWrapperPlugin,
     UnwrapError,
-    VendorFixtureWrapperPlugin,
+    VendorDcXHeaderPlugin,
 )
 from dicom_decoder.sniffer import detect_raw_dicom, find_embedded_dicom_preamble, sniff_and_unwrap
 
@@ -55,13 +55,12 @@ def test_prefix_plugin_raises_for_short_payload() -> None:
     raise AssertionError("Expected UnwrapError")
 
 
-def test_vendor_fixture_plugin_can_unwrap() -> None:
+def test_vendor_header_plugin_can_unwrap() -> None:
     payload = (b"\x00" * 128) + b"DICM" + b"\x02\x00\x00\x00"
     wrapped = b"VENDX1" + payload
-    plugin = VendorFixtureWrapperPlugin(
+    plugin = VendorDcXHeaderPlugin(
         name="vendx-fixture",
-        fixture_prefix=b"VENDX1",
-        strip_prefix_bytes=6,
+        header=b"VENDX1",
     )
     result = sniff_and_unwrap(wrapped, plugins=[plugin])
     assert result.is_dicom

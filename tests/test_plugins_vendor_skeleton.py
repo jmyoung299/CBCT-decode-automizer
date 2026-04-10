@@ -5,6 +5,7 @@ from pydicom import FileDataset, FileMetaDataset
 from pydicom.uid import CTImageStorage, ExplicitVRLittleEndian, generate_uid
 
 from dicom_decoder.fixtures import discover_vendor_fixture_cases
+from dicom_decoder.golden import run_fixture_case
 from dicom_decoder.parser import parse_dicom
 from dicom_decoder.plugins import VendorDcXHeaderPlugin
 
@@ -58,3 +59,21 @@ def test_discover_vendor_fixture_cases_empty_when_missing() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         cases = discover_vendor_fixture_cases(Path(tmp_dir))
         assert cases == []
+
+
+def test_run_fixture_case_executes_vendor_plugin() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        case = root / "vendor_case_001"
+        case.mkdir(parents=True, exist_ok=True)
+
+        dcm_path = case / "source.dcm"
+        raw = _create_minimal_dicom(dcm_path, patient_id="GOLDEN-PATIENT")
+        wrapped = b"VEND\x01\x00\x00\x00" + raw
+        wrapped_path = case / "wrapped.dcx"
+        wrapped_path.write_bytes(wrapped)
+
+        result = run_fixture_case(case)
+        assert not result.parse_result.errors
+        assert result.parse_result.unwrap_plugin == "fixture-vendor-header"
+        assert result.parse_result.tags["PatientID"] == "GOLDEN-PATIENT"

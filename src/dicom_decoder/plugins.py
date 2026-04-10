@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 
@@ -63,6 +64,39 @@ class VendorDcXHeaderPlugin:
         if len(blob) <= len(self.header):
             raise UnwrapError("Payload too short after stripping header.")
         return blob[len(self.header) :]
+
+    @classmethod
+    def from_fixture_file(cls, fixture_path: str | Path) -> "VendorDcXHeaderPlugin":
+        """
+        Build plugin settings from a simple key=value fixture config.
+        Supported keys:
+          - name
+          - header_ascii
+          - header_hex
+        """
+        path = Path(fixture_path)
+        if not path.exists():
+            raise ValueError(f"Fixture config not found: {fixture_path}")
+
+        values: dict[str, str] = {}
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+
+        if "header_hex" in values:
+            header = bytes.fromhex(values["header_hex"])
+        elif "header_ascii" in values:
+            header = values["header_ascii"].encode("ascii")
+        else:
+            raise ValueError("Fixture config must define header_hex or header_ascii.")
+
+        return cls(
+            name=values.get("name", "vendor-dcx-skeleton"),
+            header=header,
+        )
 
 
 @dataclass

@@ -100,7 +100,7 @@ def test_parse_dicom_with_prefix_plugin() -> None:
 
 
 def test_parse_bytes_matches_parse_dicom_for_raw_input() -> None:
-    from dicom_decoder.parser import parse_bytes
+    from dicom_decoder.parser import parse_dicom_bytes
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         dicom_path = Path(tmp_dir) / "raw.dcm"
@@ -108,8 +108,29 @@ def test_parse_bytes_matches_parse_dicom_for_raw_input() -> None:
         raw = dicom_path.read_bytes()
 
         by_path = parse_dicom(str(dicom_path), decoders=[])
-        by_bytes = parse_bytes(raw, source_id="memory://raw.dcm", decoders=[])
+        by_bytes = parse_dicom_bytes(raw, source_name="memory://raw.dcm", decoders=[])
 
         assert by_path.transfer_syntax_uid == by_bytes.transfer_syntax_uid
         assert by_path.tags == by_bytes.tags
         assert by_bytes.path == "memory://raw.dcm"
+
+
+def test_parse_dicom_can_dump_unwrapped_bytes() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        dicom_path = root / "source.dcm"
+        dump_path = root / "unwrapped.p10"
+        _create_minimal_dicom(dicom_path)
+
+        wrapped_path = root / "wrapped.dcx"
+        wrapped_path.write_bytes(b"DCX1" + dicom_path.read_bytes())
+
+        result = parse_dicom(
+            str(wrapped_path),
+            decoders=[PrefixBytesWrapperPlugin(name="dcx-v1", magic_prefix=b"DCX1", strip_bytes=4)],
+            dump_unwrapped_path=str(dump_path),
+        )
+
+        assert not result.errors
+        assert dump_path.exists()
+        assert dump_path.read_bytes()[128:132] == b"DICM"
