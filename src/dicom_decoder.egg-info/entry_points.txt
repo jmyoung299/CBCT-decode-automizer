@@ -1,2 +1,0 @@
-[console_scripts]
-dicom-parse = dicom_decoder.cli:main
