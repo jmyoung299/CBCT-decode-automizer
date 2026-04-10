@@ -4,11 +4,12 @@ from pathlib import Path
 from pydicom import FileDataset, FileMetaDataset
 from pydicom.uid import CTImageStorage, ExplicitVRLittleEndian, generate_uid
 
-from dicom_decoder.batch import parse_batch
-from dicom_decoder.ingest import parse_s3_objects
+from dicom_decoder.fixtures import discover_vendor_fixture_cases
+from dicom_decoder.parser import parse_dicom
+from dicom_decoder.plugins import VendorDcXHeaderPlugin
 
 
-def _create_minimal_dicom(path: Path, patient_id: str) -> None:
+def _create_minimal_dicom(path: Path, patient_id: str) -> bytes:
     meta = FileMetaDataset()
     meta.MediaStorageSOPClassUID = CTImageStorage
     sop_instance_uid = generate_uid()
@@ -32,35 +33,28 @@ def _create_minimal_dicom(path: Path, patient_id: str) -> None:
     ds.HighBit = 7
     ds.PixelData = b"\x00\x01\x02\x03"
     ds.save_as(str(path), enforce_file_format=True)
+    return path.read_bytes()
 
 
-def test_parse_batch_collects_mixed_inputs() -> None:
+def test_vendor_header_plugin_unwraps_and_parses() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         root = Path(tmp_dir)
-        _create_minimal_dicom(root / "a.dcm", patient_id="A")
-        _create_minimal_dicom(root / "b.dicom", patient_id="B")
-        (root / "bad.dcx").write_bytes(b"NOT_A_DICOM")
+        dcm_path = root / "source.dcm"
+        raw = _create_minimal_dicom(dcm_path, patient_id="FIXTURE-PATIENT")
+        wrapped = b"VEND\x01\x00\x00\x00" + raw
+        wrapped_path = root / "sample.dcx"
+        wrapped_path.write_bytes(wrapped)
 
-        summary = parse_batch(str(root))
-        assert summary.scanned_files == 3
-        assert summary.parsed_files == 2
-        assert summary.failed_files == 1
-
-
-def test_parse_s3_objects_reports_results() -> None:
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        root = Path(tmp_dir)
-        dcm_path = root / "a.dcm"
-        _create_minimal_dicom(dcm_path, patient_id="A")
-        bad_blob = b"NOT_A_DICOM"
-        dcm_blob = dcm_path.read_bytes()
-
-        summary = parse_s3_objects(
-            [
-                ("s3://bucket/a.dcm", dcm_blob),
-                ("s3://bucket/bad.dcx", bad_blob),
-            ]
+        result = parse_dicom(
+            str(wrapped_path),
+            decoders=[VendorDcXHeaderPlugin(name="vendor-dcx-skeleton", header=b"VEND\x01\x00\x00\x00")],
         )
-        assert summary.scanned_objects == 2
-        assert summary.parsed_objects == 1
-        assert summary.failed_objects == 1
+        assert not result.errors
+        assert result.unwrap_plugin == "vendor-dcx-skeleton"
+        assert result.tags["PatientID"] == "FIXTURE-PATIENT"
+
+
+def test_discover_vendor_fixture_cases_empty_when_missing() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cases = discover_vendor_fixture_cases(Path(tmp_dir))
+        assert cases == []

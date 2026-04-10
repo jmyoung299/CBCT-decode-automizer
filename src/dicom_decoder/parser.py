@@ -37,18 +37,22 @@ def _is_encapsulated_transfer_syntax(ts_uid: str | None) -> bool:
         return False
 
 
-def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> ParseResult:
-    p = Path(path)
+def parse_dicom_bytes(
+    payload: bytes,
+    *,
+    source_name: str = "<memory>",
+    decoders: list[WrapperDecoder] | None = None,
+) -> ParseResult:
     warnings: list[str] = []
     errors: list[str] = []
 
     sniff = sniff_and_unwrap(
-        p.read_bytes(),
+        payload,
         plugins=default_decoders() if decoders is None else decoders,
     )
     if not sniff.is_dicom:
         return ParseResult(
-            path=str(p),
+            path=source_name,
             transfer_syntax_uid=None,
             is_little_endian=True,
             is_implicit_vr=True,
@@ -70,7 +74,7 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
         ds = dcmread(io.BytesIO(sniff.payload), force=False)
     except InvalidDicomError as exc:
         return ParseResult(
-            path=str(p),
+            path=source_name,
             transfer_syntax_uid=None,
             is_little_endian=True,
             is_implicit_vr=True,
@@ -129,7 +133,7 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
             errors.extend(validation_errors)
 
     return ParseResult(
-        path=str(p),
+        path=source_name,
         transfer_syntax_uid=ts_uid,
         is_little_endian=bool(ds.is_little_endian),
         is_implicit_vr=bool(ds.is_implicit_VR),
@@ -146,3 +150,22 @@ def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> Pars
         source_format=sniff.classification,
         unwrap_plugin=sniff.plugin_name,
     )
+
+
+def parse_dicom(path: str, decoders: list[WrapperDecoder] | None = None) -> ParseResult:
+    p = Path(path)
+    return parse_dicom_bytes(
+        p.read_bytes(),
+        source_name=str(p),
+        decoders=decoders,
+    )
+
+
+def parse_bytes(
+    payload: bytes,
+    *,
+    source_id: str = "<memory>",
+    decoders: list[WrapperDecoder] | None = None,
+) -> ParseResult:
+    """Backwards-compatible alias for in-memory parsing."""
+    return parse_dicom_bytes(payload, source_name=source_id, decoders=decoders)

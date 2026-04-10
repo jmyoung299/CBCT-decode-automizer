@@ -35,6 +35,29 @@ This prints a JSON report containing:
 - per-file parse results
 - summary counters (`scanned_files`, `parsed_files`, `failed_files`)
 
+## Fixture-driven proprietary plugin development
+
+You can build vendor handlers without touching parser internals:
+
+1. Drop sample wrapped payloads in a fixtures folder.
+2. Load them with `dicom_decoder.fixtures.iter_wrapped_samples`.
+3. Implement/adjust a plugin in `plugins.py`.
+4. Test using `tests/test_plugins_vendor_skeleton.py`.
+
+Current scaffold includes `WsHealthImagingDcxPlugin` as a strict prefix-based
+example (`WSDX` + byte strip). Replace that logic with real vendor decoding
+steps as you map the proprietary format.
+
+## Object-store style ingest adapter
+
+The `dicom_decoder.ingest` module includes:
+
+- `ObjectStoreClient` protocol (list/get interface)
+- `parse_prefix()` to process files from a prefix without local temp files
+
+This lets you connect S3-compatible stores while keeping decode logic in the
+same parser pipeline.
+
 ## Phase 2 extension points
 
 - Add proprietary handlers in `src/dicom_decoder/plugins.py`.

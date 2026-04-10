@@ -14,6 +14,7 @@ dicom-parse-batch = "dicom_decoder.cli_batch:main"
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "boto3",
 ]
 
 [build-system]

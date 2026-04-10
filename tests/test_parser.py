@@ -97,3 +97,19 @@ def test_parse_dicom_with_prefix_plugin() -> None:
         assert result.unwrap_plugin == "dcx-v1"
         assert result.source_format == "wrapped_by_plugin"
         assert result.has_pixel_data is True
+
+
+def test_parse_bytes_matches_parse_dicom_for_raw_input() -> None:
+    from dicom_decoder.parser import parse_bytes
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        dicom_path = Path(tmp_dir) / "raw.dcm"
+        _create_minimal_dicom(dicom_path)
+        raw = dicom_path.read_bytes()
+
+        by_path = parse_dicom(str(dicom_path), decoders=[])
+        by_bytes = parse_bytes(raw, source_id="memory://raw.dcm", decoders=[])
+
+        assert by_path.transfer_syntax_uid == by_bytes.transfer_syntax_uid
+        assert by_path.tags == by_bytes.tags
+        assert by_bytes.path == "memory://raw.dcm"
