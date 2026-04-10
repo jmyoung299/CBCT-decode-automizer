@@ -112,6 +112,8 @@ class VendorFixtureWrapperPlugin:
     name: str
     fixture_prefix: bytes
     strip_prefix_bytes: int
+    strip_suffix_bytes: int = 0
+    reverse_payload: bool = False
     version: str = "0.1.0"
 
     def match(self, blob: bytes) -> float:
@@ -122,7 +124,31 @@ class VendorFixtureWrapperPlugin:
             raise UnwrapError("Fixture prefix mismatch.")
         if len(blob) <= self.strip_prefix_bytes:
             raise UnwrapError("Payload too short after configured strip.")
-        return blob[self.strip_prefix_bytes :]
+        payload = blob[self.strip_prefix_bytes :]
+        if self.strip_suffix_bytes:
+            if len(payload) <= self.strip_suffix_bytes:
+                raise UnwrapError("Payload too short after configured suffix strip.")
+            payload = payload[: -self.strip_suffix_bytes]
+        if self.reverse_payload:
+            payload = payload[::-1]
+        return payload
+
+
+def build_fixture_plugin(
+    *,
+    name: str,
+    prefix: bytes,
+    strip_prefix_bytes: int,
+    strip_suffix_bytes: int = 0,
+    reverse_payload: bool = False,
+) -> VendorFixtureWrapperPlugin:
+    return VendorFixtureWrapperPlugin(
+        name=name,
+        fixture_prefix=prefix,
+        strip_prefix_bytes=strip_prefix_bytes,
+        strip_suffix_bytes=strip_suffix_bytes,
+        reverse_payload=reverse_payload,
+    )
 
 
 def default_decoders() -> list[WrapperDecoder]:

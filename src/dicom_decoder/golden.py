@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .fixtures import FixturePluginConfig, VendorFixtureCase, load_vendor_fixture_cases
 from .parser import parse_dicom
-from .plugins import VendorDcXHeaderPlugin, VendorFixtureWrapperPlugin, WrapperDecoder
+from .plugins import build_fixture_plugin, WrapperDecoder
 from .models import ParseResult
 
 
@@ -34,16 +34,14 @@ class GoldenRunSummary:
 
 
 def _build_decoder_for_case(case: VendorFixtureCase) -> WrapperDecoder:
-    cfg = case.plugin
-    if cfg.plugin_type == "header":
-        return VendorDcXHeaderPlugin(name=cfg.name, header=cfg.header_bytes)
-    if cfg.plugin_type == "prefix-strip":
-        return VendorFixtureWrapperPlugin(
-            name=cfg.name,
-            fixture_prefix=cfg.prefix_bytes,
-            strip_prefix_bytes=cfg.strip_prefix_bytes,
-        )
-    raise ValueError(f"Unsupported plugin type in fixture case {case.case_name}: {cfg.plugin_type}")
+    cfg: FixturePluginConfig = case.plugin
+    return build_fixture_plugin(
+        name=cfg.name,
+        prefix=cfg.prefix_bytes,
+        strip_prefix_bytes=cfg.strip_prefix_bytes,
+        strip_suffix_bytes=cfg.strip_suffix_bytes,
+        reverse_payload=cfg.reverse_payload,
+    )
 
 
 def _validate_expected(case: VendorFixtureCase, parsed: ParseResult) -> list[str]:

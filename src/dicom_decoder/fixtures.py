@@ -34,17 +34,28 @@ def _int_from_string(value: str, default: int) -> int:
 
 
 @dataclass
+class FixturePluginConfig:
+    plugin_type: str
+    name: str
+    prefix_bytes: bytes
+    strip_prefix_bytes: int
+    strip_suffix_bytes: int
+    reverse_payload: bool
+
+
+@dataclass
 class VendorFixtureCase:
     case_name: str
     case_dir: Path
     wrapped_path: Path
-    plugin_name: str
-    header_bytes: bytes
-    strip_bytes: int
-    expected_patient_id: str | None
+    plugin: FixturePluginConfig
     expected_tags: dict[str, str]
-    expected_warnings_contains: list[str]
-    expected_errors_contains: list[str]
+    expect_warning_contains: list[str]
+    expect_error_contains: list[str]
+    expect_unwrap_plugin: str | None
+    expect_source_format: str | None
+    expect_has_pixel_data: bool | None
+    expected_tags: dict[str, str]
     enabled: bool = True
 
 
@@ -87,7 +98,7 @@ def _parse_expected_json(path: Path) -> dict[str, object]:
         return {}
 
 
-def _get_header_bytes(config: dict[str, str], expected_json: dict[str, object]) -> bytes:
+def _get_prefix_bytes(config: dict[str, str], expected_json: dict[str, object]) -> bytes:
     plugin_json = expected_json.get("plugin", {}) if isinstance(expected_json, dict) else {}
     if isinstance(plugin_json, dict):
         header_hex = plugin_json.get("header_hex")
@@ -116,6 +127,18 @@ def _get_plugin_name(config: dict[str, str], expected_json: dict[str, object]) -
     if "name" in config and config["name"]:
         return config["name"]
     return "fixture-vendor-header"
+
+
+def _get_plugin_type(config: dict[str, str], expected_json: dict[str, object]) -> str:
+    plugin_json = expected_json.get("plugin", {}) if isinstance(expected_json, dict) else {}
+    if isinstance(plugin_json, dict):
+        plugin_type = plugin_json.get("type")
+        if isinstance(plugin_type, str) and plugin_type:
+            return plugin_type
+    plugin_type = config.get("plugin_type", "")
+    if plugin_type:
+        return plugin_type
+    return "header"
 
 
 def _get_expected_patient_id(config: dict[str, str], expected_json: dict[str, object]) -> str | None:
@@ -159,6 +182,15 @@ def _get_expected_contains(expected_json: dict[str, object], key: str) -> list[s
     return [v for v in values if isinstance(v, str) and v]
 
 
+def _get_expected_bool(expected_json: dict[str, object], key: str) -> bool | None:
+    if not isinstance(expected_json, dict):
+        return None
+    value = expected_json.get(key)
+    if isinstance(value, bool):
+        return value
+    return None
+
+
 def load_vendor_fixture_case(case_dir: str | Path) -> VendorFixtureCase | None:
     case_path = Path(case_dir)
     wrapped_path = case_path / "wrapped.dcx"
@@ -181,17 +213,35 @@ def load_vendor_fixture_case(case_dir: str | Path) -> VendorFixtureCase | None:
     if not enabled:
         return None
 
+    prefix = _get_prefix_bytes(config, expected_json)
+    strip_prefix = _int_from_string(config.get("strip_prefix_bytes", ""), len(prefix))
+    strip_suffix = _int_from_string(config.get("strip_suffix_bytes", ""), 0)
+    reverse_payload = _bool_from_string(config.get("reverse_payload", ""), False)
+    plugin_cfg = FixturePluginConfig(
+        plugin_type=_get_plugin_type(config, expected_json),
+        name=_get_plugin_name(config, expected_json),
+        prefix_bytes=prefix,
+        strip_prefix_bytes=strip_prefix,
+        strip_suffix_bytes=strip_suffix,
+        reverse_payload=reverse_payload,
+    )
+
+    expected_tags = _get_expected_tags(expected_json)
+    patient_id = _get_expected_patient_id(config, expected_json)
+    if patient_id is not None:
+        expected_tags.setdefault("PatientID", patient_id)
+
     return VendorFixtureCase(
         case_name=case_path.name,
         case_dir=case_path,
         wrapped_path=wrapped_path,
-        plugin_name=_get_plugin_name(config, expected_json),
-        header_bytes=_get_header_bytes(config, expected_json),
-        strip_bytes=_int_from_string(config.get("strip_prefix_bytes", ""), len(_get_header_bytes(config, expected_json))),
-        expected_patient_id=_get_expected_patient_id(config, expected_json),
-        expected_tags=_get_expected_tags(expected_json),
-        expected_warnings_contains=_get_expected_contains(expected_json, "warnings_contains"),
-        expected_errors_contains=_get_expected_contains(expected_json, "errors_contains"),
+        plugin=plugin_cfg,
+        expected_tags=expected_tags,
+        expect_warning_contains=_get_expected_contains(expected_json, "expect_warnings_contains"),
+        expect_error_contains=_get_expected_contains(expected_json, "expect_errors_contains"),
+        expect_unwrap_plugin=_get_expected_tags(expected_json).get("unwrap_plugin"),
+        expect_source_format=_get_expected_tags(expected_json).get("source_format"),
+        expect_has_pixel_data=_get_expected_bool(expected_json, "expect_has_pixel_data"),
         enabled=True,
     )
 
