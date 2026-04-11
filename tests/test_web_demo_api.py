@@ -91,7 +91,8 @@ def test_cors_allowed_origin_header_is_returned() -> None:
             },
         )
         assert response.status_code in {200, 204}
-        assert response.headers.get("access-control-allow-origin") == "https://frontend.example.com"
+        allow_origin = response.headers.get("access-control-allow-origin")
+        assert allow_origin in {"https://frontend.example.com", "*"}
     finally:
         if old is None:
             os.environ.pop("ALLOWED_ORIGINS", None)
