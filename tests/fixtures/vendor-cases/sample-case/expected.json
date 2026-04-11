@@ -1,0 +1,13 @@
+{
+  "plugin": {
+    "name": "vendx-fixture",
+    "header_ascii": "VENDX1"
+  },
+  "expected": {
+    "PatientID": "FIXTURE-PATIENT"
+  },
+  "assert": {
+    "warnings_include": [],
+    "errors_include": []
+  }
+}
