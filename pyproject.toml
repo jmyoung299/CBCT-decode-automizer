@@ -6,12 +6,16 @@ requires-python = ">=3.10"
 dependencies = [
   "pydicom",
   "boto3",
+  "fastapi",
+  "uvicorn",
+  "python-multipart",
 ]
 
 [project.scripts]
 dicom-parse = "dicom_decoder.cli:main"
 dicom-parse-batch = "dicom_decoder.cli_batch:main"
 dicom-golden = "dicom_decoder.cli_golden:main"
+dicom-web-demo = "dicom_decoder.web_demo:main"
 
 [project.optional-dependencies]
 dev = [

@@ -11,6 +11,23 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
+## Web demo (upload dashboard)
+
+Run a local API + dashboard page:
+
+```bash
+dicom-web-demo
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
+
+You can upload `.dcm`/`.dcx` files in the browser and view parsed metadata and
+warnings/errors immediately.
+
 ## Parse one file
 
 ```bash
