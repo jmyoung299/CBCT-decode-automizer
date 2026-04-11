@@ -28,6 +28,23 @@ http://127.0.0.1:8000
 You can upload `.dcm`/`.dcx` files in the browser and view parsed metadata and
 warnings/errors immediately.
 
+### One-command local demo (backend + frontend)
+
+From repository root:
+
+```bash
+./scripts/dev-demo.sh
+```
+
+This script:
+
+- installs backend dependencies (`pip install -e .[dev]`)
+- installs frontend dependencies (`npm install` in `frontend/`)
+- starts backend on `http://127.0.0.1:8000`
+- starts frontend on `http://127.0.0.1:5173`
+
+If `5173` is in use it will automatically try the next port.
+
 ## Standalone frontend (Vercel/Firebase-ready)
 
 A separate frontend app is available in `frontend/` so you can host UI
