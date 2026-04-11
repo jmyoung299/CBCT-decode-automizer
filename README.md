@@ -28,6 +28,44 @@ http://127.0.0.1:8000
 You can upload `.dcm`/`.dcx` files in the browser and view parsed metadata and
 warnings/errors immediately.
 
+## Standalone frontend (Vercel/Firebase-ready)
+
+A separate frontend app is available in `frontend/` so you can host UI
+independently and point it at your Python API.
+
+### Local frontend run
+
+```bash
+cd frontend
+cp .env.example .env
+# set VITE_API_BASE_URL=http://127.0.0.1:8000
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+### Vercel deployment (frontend only)
+
+1. Import the `frontend/` directory as a Vercel project.
+2. Build command: `npm run build`
+3. Output directory: `dist`
+4. Set env var `VITE_API_BASE_URL` to your deployed API base URL.
+
+### Firebase Hosting deployment (frontend only)
+
+```bash
+cd frontend
+npm run build
+firebase deploy --only hosting
+```
+
+Then set `VITE_API_BASE_URL` in your environment/build pipeline to your API URL.
+
 ## Parse one file
 
 ```bash
