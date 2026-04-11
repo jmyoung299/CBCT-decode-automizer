@@ -62,6 +62,32 @@ firebase deploy --only hosting
 
 Update `.firebaserc` with your project ID before deploy.
 
+### GitHub Actions auto-deploy (Firebase Hosting)
+
+This repo includes `.github/workflows/firebase-hosting-deploy.yml`.
+
+It deploys `frontend/` to Firebase Hosting on pushes to `main`
+(or manually via `workflow_dispatch`).
+
+Required GitHub repository secrets:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+  - JSON content of a Firebase/GCP service account key
+  - must have permission to deploy hosting (`Firebase Hosting Admin` or equivalent)
+- `FIREBASE_PROJECT_ID`
+  - your Firebase project ID
+- `VITE_API_BASE_URL`
+  - your deployed backend API URL (for frontend build-time config)
+
+The workflow:
+
+1. checks out repo
+2. sets up Node 22
+3. installs frontend deps (`npm ci`)
+4. builds frontend with `VITE_API_BASE_URL`
+5. writes service account JSON from secret
+6. runs `firebase deploy --only hosting --project $FIREBASE_PROJECT_ID`
+
 ## 4) Verify
 
 - Backend health:

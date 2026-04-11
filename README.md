@@ -83,6 +83,17 @@ firebase deploy --only hosting
 
 Then set `VITE_API_BASE_URL` in your environment/build pipeline to your API URL.
 
+### Firebase Hosting auto-deploy (GitHub Actions)
+
+This repo includes `.github/workflows/firebase-hosting-deploy.yml` to deploy
+the `frontend/` app from `main`.
+
+Required GitHub repository secrets:
+
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_SERVICE_ACCOUNT` (full JSON service account key)
+- `VITE_API_BASE_URL` (your deployed backend API URL)
+
 ## Click-deploy files
 
 This repo now includes deployment scaffolding so you can avoid local port issues:
