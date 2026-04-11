@@ -83,6 +83,25 @@ firebase deploy --only hosting
 
 Then set `VITE_API_BASE_URL` in your environment/build pipeline to your API URL.
 
+## Click-deploy files
+
+This repo now includes deployment scaffolding so you can avoid local port issues:
+
+- Backend API container:
+  - `Dockerfile`
+  - `cloudbuild.yaml` (Cloud Build + Cloud Run)
+- Frontend static hosting:
+  - `frontend/vercel.json`
+  - `frontend/firebase.json`
+- Deployment guide:
+  - `deploy/README.md`
+
+The backend API supports CORS via environment variable:
+
+```text
+ALLOWED_ORIGINS=https://your-frontend.vercel.app,https://your-frontend.web.app
+```
+
 ## Parse one file
 
 ```bash

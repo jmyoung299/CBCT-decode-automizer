@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,6 +8,7 @@ from threading import Lock
 from uuid import uuid4
 
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from .parser import parse_dicom_bytes
@@ -122,6 +124,16 @@ def create_app() -> FastAPI:
     app = FastAPI(title="DICOM Decoder Demo API")
     jobs: dict[str, ParseJob] = {}
     jobs_lock = Lock()
+
+    cors_origins = os.environ.get("CORS_ORIGINS", "*")
+    allow_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins or ["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/", response_class=HTMLResponse)
     @app.get("/api/ui", response_class=HTMLResponse)

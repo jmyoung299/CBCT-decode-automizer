@@ -1,4 +1,5 @@
 import io
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -74,3 +75,25 @@ def test_upload_parse_endpoint_handles_invalid_payload() -> None:
     payload = response.json()
     assert payload["ok"] is False
     assert payload["result"]["errors"]
+
+
+def test_cors_allowed_origin_header_is_returned() -> None:
+    old = os.environ.get("ALLOWED_ORIGINS")
+    os.environ["ALLOWED_ORIGINS"] = "https://frontend.example.com"
+    try:
+        app = create_app()
+        client = TestClient(app)
+        response = client.options(
+            "/api/parse",
+            headers={
+                "Origin": "https://frontend.example.com",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert response.status_code in {200, 204}
+        assert response.headers.get("access-control-allow-origin") == "https://frontend.example.com"
+    finally:
+        if old is None:
+            os.environ.pop("ALLOWED_ORIGINS", None)
+        else:
+            os.environ["ALLOWED_ORIGINS"] = old
