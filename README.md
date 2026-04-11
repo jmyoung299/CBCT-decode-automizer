@@ -171,3 +171,10 @@ print(summary.to_dict())
   `match()` and `unwrap()`.
 - Add/replace entries in `default_decoders()` with real vendor-specific
   unwrap logic as you collect `.dcx` samples.
+
+## CI
+
+GitHub Actions workflow is included at `.github/workflows/ci.yml` and runs:
+
+- Python tests (`python3 -m pytest -q`)
+- Frontend lint + build (`npm run lint` and `npm run build` in `frontend/`)
