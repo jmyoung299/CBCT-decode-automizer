@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import Lock
 from uuid import uuid4
 
@@ -29,6 +30,12 @@ class ParseJob:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_payload(raw: bytes, filename: str) -> dict[str, object]:
+    parsed = parse_dicom_bytes(raw, source_name=filename)
+    result = parsed.to_dict()
+    return {"ok": not bool(parsed.errors), "result": result}
 
 
 def _dashboard_html() -> str:
@@ -117,6 +124,7 @@ def create_app() -> FastAPI:
     jobs_lock = Lock()
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("/api/ui", response_class=HTMLResponse)
     def dashboard() -> str:
         return _dashboard_html()
 
@@ -138,6 +146,12 @@ def create_app() -> FastAPI:
             return {"error": "job_not_found", "job_id": job_id}
         return job.to_dict()
 
+    @app.post("/api/parse")
+    async def parse(file: UploadFile = File(...)) -> dict[str, object]:
+        raw = await file.read()
+        filename = file.filename or "upload.bin"
+        return _parse_payload(raw, filename)
+
     @app.post("/api/upload")
     async def upload(file: UploadFile = File(...)) -> dict[str, object]:
         raw = await file.read()
@@ -152,6 +166,20 @@ def create_app() -> FastAPI:
         with jobs_lock:
             jobs[job.job_id] = job
         return job.to_dict()
+
+    @app.get("/api/demo/sample")
+    def parse_sample_fixture() -> dict[str, object]:
+        sample = (
+            Path(__file__).resolve().parents[2]
+            / "tests"
+            / "fixtures"
+            / "vendor-cases"
+            / "sample-case"
+            / "wrapped.dcx"
+        )
+        if not sample.exists():
+            return {"ok": False, "error": "sample_not_found"}
+        return _parse_payload(sample.read_bytes(), sample.name)
 
     return app
 

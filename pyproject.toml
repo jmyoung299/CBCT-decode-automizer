@@ -20,6 +20,7 @@ dicom-web-demo = "dicom_decoder.web_demo:main"
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "httpx",
 ]
 
 [build-system]
